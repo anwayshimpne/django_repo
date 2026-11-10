@@ -1,8 +1,9 @@
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
+from django.http import HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
 
-from .models import Choice, Course, Lesson, Submission
+from .models import Choice, Course, Learner, Question, Submission
 
 
 def course_details(request, course_id):
@@ -11,49 +12,55 @@ def course_details(request, course_id):
 
 
 @login_required
-def submit(request, lesson_id):
-    lesson = get_object_or_404(Lesson.objects.prefetch_related("questions__choices"), pk=lesson_id)
+def submit(request, course_id):
+    course = get_object_or_404(Course.objects.prefetch_related("lessons__questions__choices"), pk=course_id)
     if request.method != "POST":
-        return redirect("onlinecourse:course_details", course_id=lesson.course_id)
+        return redirect("onlinecourse:course_details", course_id=course.pk)
 
-    questions = list(lesson.questions.all())
-    question_ids = {question.pk for question in questions}
+    learner = get_object_or_404(Learner, user=request.user)
+    if not learner.enrolled_courses.filter(pk=course.pk).exists():
+        return HttpResponseForbidden("You must be enrolled in this course to submit the exam.")
+
+    questions = list(Question.objects.filter(lesson__course=course).prefetch_related("choices"))
     selected_ids = set()
     correct_count = 0
     for question in questions:
         value = request.POST.get(f"question_{question.pk}")
         if not value:
             continue
-        choice = Choice.objects.filter(pk=value, question_id=question.pk).first()
+        choice = next((item for item in question.choices.all() if str(item.pk) == value), None)
         if choice:
             selected_ids.add(choice.pk)
             if choice.is_correct:
                 correct_count += 1
 
-    score = round(correct_count * 100 / len(questions)) if questions else 0
+    grade = round(correct_count * 100 / len(questions)) if questions else 0
     with transaction.atomic():
-        submission = Submission.objects.create(learner=request.user, lesson=lesson, score=score)
-        submission.selected_choices.set(Choice.objects.filter(pk__in=selected_ids, question__lesson_id=lesson.pk))
-    return redirect("onlinecourse:show_exam_result", submission_id=submission.pk)
+        submission = Submission.objects.create(learner=learner, course=course, score=grade)
+        submission.selected_choices.set(Choice.objects.filter(
+            pk__in=selected_ids, question__lesson__course=course
+        ))
+    return redirect("onlinecourse:show_exam_result", course_id=course.pk, submission_id=submission.pk)
 
 
 @login_required
-def show_exam_result(request, submission_id):
+def show_exam_result(request, course_id, submission_id):
+    course = get_object_or_404(Course, pk=course_id)
+    learner = get_object_or_404(Learner, user=request.user)
     submission = get_object_or_404(
-        Submission.objects.select_related("lesson__course", "learner").prefetch_related(
-            "lesson__questions__choices", "selected_choices"
-        ),
+        Submission.objects.prefetch_related("selected_choices"),
         pk=submission_id,
-        learner=request.user,
+        course=course,
+        learner=learner,
     )
     selected_ids = set(submission.selected_choices.values_list("pk", flat=True))
-    results = []
-    for question in submission.lesson.questions.all():
-        choices = list(question.choices.all())
-        results.append({
-            "question": question,
-            "choices": choices,
-            "selected_ids": selected_ids,
-            "correct": any(choice.pk in selected_ids and choice.is_correct for choice in choices),
-        })
-    return render(request, "onlinecourse/exam_result.html", {"submission": submission, "results": results})
+    grade = submission.score
+    questions = Question.objects.filter(lesson__course=course).prefetch_related("choices")
+    results = [{"question": question, "choices": question.choices.all()} for question in questions]
+    return render(request, "onlinecourse/exam_result_bootstrap.html", {
+        "course": course,
+        "submission": submission,
+        "selected_ids": selected_ids,
+        "grade": grade,
+        "results": results,
+    })

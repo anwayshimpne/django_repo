@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Choice, Course, Lesson, Question, Submission
+from .models import Choice, Course, Instructor, Learner, Lesson, Question, Submission
 
 
 class ChoiceInline(admin.TabularInline):
@@ -32,6 +32,20 @@ class LessonAdmin(admin.ModelAdmin):
 class CourseAdmin(admin.ModelAdmin):
     list_display = ("name",)
     search_fields = ("name",)
+    filter_horizontal = ("instructors",)
+
+
+@admin.register(Instructor)
+class InstructorAdmin(admin.ModelAdmin):
+    list_display = ("user",)
+    search_fields = ("user__username", "user__email")
+
+
+@admin.register(Learner)
+class LearnerAdmin(admin.ModelAdmin):
+    list_display = ("user",)
+    search_fields = ("user__username", "user__email")
+    filter_horizontal = ("enrolled_courses",)
 
 
 @admin.register(Choice)
@@ -42,6 +56,6 @@ class ChoiceAdmin(admin.ModelAdmin):
 
 @admin.register(Submission)
 class SubmissionAdmin(admin.ModelAdmin):
-    list_display = ("learner", "lesson", "score", "submitted_at")
-    list_filter = ("lesson__course", "submitted_at")
-    readonly_fields = ("learner", "lesson", "selected_choices", "score", "submitted_at")
+    list_display = ("learner", "course", "score", "submitted_at")
+    list_filter = ("course", "submitted_at")
+    readonly_fields = ("learner", "course", "selected_choices", "score", "submitted_at")
