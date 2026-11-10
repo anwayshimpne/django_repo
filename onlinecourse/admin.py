@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Choice, Course, Instructor, Learner, Lesson, Question, Submission
+from .models import Choice, Course, Enrollment, Instructor, Learner, Lesson, Question, Submission
 
 
 class ChoiceInline(admin.TabularInline):
@@ -15,8 +15,8 @@ class QuestionInline(admin.StackedInline):
 
 @admin.register(Question)
 class QuestionAdmin(admin.ModelAdmin):
-    list_display = ("prompt", "lesson", "order")
-    list_filter = ("lesson__course",)
+    list_display = ("content", "course", "lesson", "grade", "order")
+    list_filter = ("course",)
     inlines = [ChoiceInline]
 
 
@@ -48,6 +48,12 @@ class LearnerAdmin(admin.ModelAdmin):
     filter_horizontal = ("enrolled_courses",)
 
 
+@admin.register(Enrollment)
+class EnrollmentAdmin(admin.ModelAdmin):
+    list_display = ("learner", "course", "date_enrolled")
+    list_filter = ("course", "date_enrolled")
+
+
 @admin.register(Choice)
 class ChoiceAdmin(admin.ModelAdmin):
     list_display = ("text", "question", "is_correct")
@@ -56,6 +62,6 @@ class ChoiceAdmin(admin.ModelAdmin):
 
 @admin.register(Submission)
 class SubmissionAdmin(admin.ModelAdmin):
-    list_display = ("learner", "course", "score", "submitted_at")
-    list_filter = ("course", "submitted_at")
-    readonly_fields = ("learner", "course", "selected_choices", "score", "submitted_at")
+    list_display = ("enrollment", "score", "submitted_at")
+    list_filter = ("enrollment__course", "submitted_at")
+    readonly_fields = ("enrollment", "selected_choices", "score", "submitted_at")

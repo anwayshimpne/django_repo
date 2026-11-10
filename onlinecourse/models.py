@@ -26,6 +26,18 @@ class Course(models.Model):
         return self.name
 
 
+class Enrollment(models.Model):
+    learner = models.ForeignKey(Learner, on_delete=models.CASCADE, related_name="enrollments")
+    course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name="enrollments")
+    date_enrolled = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=("learner", "course"), name="unique_learner_course_enrollment")]
+
+    def __str__(self):
+        return f"{self.learner} — {self.course}"
+
+
 class Lesson(models.Model):
     course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name="lessons")
     title = models.CharField(max_length=200)
@@ -40,15 +52,26 @@ class Lesson(models.Model):
 
 
 class Question(models.Model):
+    course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name="questions")
     lesson = models.ForeignKey(Lesson, on_delete=models.CASCADE, related_name="questions")
-    prompt = models.TextField()
+    content = models.CharField(max_length=200, blank=True)
+    prompt = models.TextField(blank=True)
+    grade = models.PositiveIntegerField(default=1)
     order = models.PositiveIntegerField(default=0)
 
     class Meta:
         ordering = ["order", "id"]
 
     def __str__(self):
-        return self.prompt[:80]
+        return self.content or self.prompt[:80]
+
+    def is_get_score(self, selected_ids):
+        """Return this question's points only when the submitted answer set is exact."""
+        correct_ids = set(self.choices.filter(is_correct=True).values_list("id", flat=True))
+        return self.grade if correct_ids and set(selected_ids) == correct_ids else 0
+
+    def get_score(self, selected_ids):
+        return self.is_get_score(selected_ids)
 
 
 class Choice(models.Model):
@@ -61,8 +84,7 @@ class Choice(models.Model):
 
 
 class Submission(models.Model):
-    learner = models.ForeignKey(Learner, on_delete=models.CASCADE, related_name="submissions")
-    course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name="submissions")
+    enrollment = models.ForeignKey(Enrollment, on_delete=models.CASCADE, related_name="submissions")
     selected_choices = models.ManyToManyField(Choice, blank=True, related_name="submissions")
     score = models.PositiveIntegerField(default=0)
     submitted_at = models.DateTimeField(auto_now_add=True)
@@ -70,5 +92,13 @@ class Submission(models.Model):
     class Meta:
         ordering = ["-submitted_at"]
 
+    @property
+    def learner(self):
+        return self.enrollment.learner
+
+    @property
+    def course(self):
+        return self.enrollment.course
+
     def __str__(self):
-        return f"{self.learner} - {self.course} ({self.score}%)"
+        return f"{self.enrollment} ({self.score}%)"
