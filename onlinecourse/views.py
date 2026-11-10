@@ -54,9 +54,19 @@ def show_exam_result(request, course_id, submission_id):
         learner=learner,
     )
     selected_ids = set(submission.selected_choices.values_list("pk", flat=True))
-    grade = submission.score
-    questions = Question.objects.filter(lesson__course=course).prefetch_related("choices")
+    questions = list(Question.objects.filter(lesson__course=course).prefetch_related("choices"))
+
+    # Derive the displayed grade from the course questions and saved selected answers,
+    # rather than relying on the score value stored when the submission was created.
+    correct_count = sum(
+        1
+        for question in questions
+        for choice in question.choices.all()
+        if choice.pk in selected_ids and choice.is_correct
+    )
+    grade = round(correct_count * 100 / len(questions)) if questions else 0
     results = [{"question": question, "choices": question.choices.all()} for question in questions]
+
     return render(request, "onlinecourse/exam_result_bootstrap.html", {
         "course": course,
         "submission": submission,
