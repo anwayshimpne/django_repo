@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Exam results{% endblock %}
+{% block content %}
+<div class="container py-4">
+  <div class="alert {% if submission.score >= 70 %}alert-success{% else %}alert-warning{% endif %}">
+    {% if submission.score >= 70 %}<h1 class="h3">Congratulations!</h1><p class="mb-0">You passed the mock exam.</p>{% else %}<h1 class="h3">Keep practicing</h1><p class="mb-0">Review the answers and try again.</p>{% endif %}
+  </div>
+  <p class="lead">Score: <strong>{{ submission.score }}%</strong></p>
+  <h2 class="h4">{{ submission.lesson.title }} — exam results</h2>
+  {% for item in results %}
+  <div class="card mb-3"><div class="card-body">
+    <h3 class="h6">{{ forloop.counter }}. {{ item.question.prompt }}</h3>
+    <ul class="list-group">
+      {% for choice in item.choices %}
+      <li class="list-group-item {% if choice.is_correct %}list-group-item-success{% elif choice.id in item.selected_ids %}list-group-item-danger{% endif %}">
+        {{ choice.text }}{% if choice.is_correct %} <strong>(Correct answer)</strong>{% endif %}{% if choice.id in item.selected_ids %} <span class="badge text-bg-primary">Your answer</span>{% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+  </div></div>
+  {% endfor %}
+  <a class="btn btn-primary" href="{% url 'onlinecourse:course_details' submission.lesson.course_id %}">Back to course</a>
+</div>
+{% endblock %}
