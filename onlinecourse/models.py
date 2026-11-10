@@ -32,7 +32,9 @@ class Enrollment(models.Model):
     date_enrolled = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        constraints = [models.UniqueConstraint(fields=("learner", "course"), name="unique_learner_course_enrollment")]
+        constraints = [
+            models.UniqueConstraint(fields=("learner", "course"), name="unique_learner_course_enrollment")
+        ]
 
     def __str__(self):
         return f"{self.learner} — {self.course}"
@@ -65,13 +67,12 @@ class Question(models.Model):
     def __str__(self):
         return self.content or self.prompt[:80]
 
-    def is_get_score(self, selected_ids):
-        """Return this question's points only when the submitted answer set is exact."""
-        correct_ids = set(self.choices.filter(is_correct=True).values_list("id", flat=True))
-        return self.grade if correct_ids and set(selected_ids) == correct_ids else 0
-
-    def get_score(self, selected_ids):
-        return self.is_get_score(selected_ids)
+    def get_score(self, selected_choice_ids):
+        correct_choice_ids = set(self.choices.filter(is_correct=True).values_list("id", flat=True))
+        selected_choice_ids = set(selected_choice_ids)
+        if correct_choice_ids and selected_choice_ids == correct_choice_ids:
+            return self.grade
+        return 0
 
 
 class Choice(models.Model):
